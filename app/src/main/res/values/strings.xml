@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">Hearthframe</string>
+    <string name="auth_headline">Every November Memory, Ready for the Living Room TV</string>
+    <string name="auth_subhead">Everyone sends photos to one shared family cloud album. Hearthframe organizes moments by day and streams them live to your TV—no manual file chasing.</string>
+    <string name="auth_sign_in_google">Sign in with Google</string>
+    <string name="auth_signing_in">Signing in…</string>
+    <string name="action_send_photos">Send Photos</string>
+    <string name="action_snap_sync">Snap &amp; Sync</string>
+    <string name="action_tv_mode">TV Slideshow</string>
+    <string name="action_create_gathering">Create Gathering</string>
+    <string name="action_join_gathering">Join with Code</string>
+    <string name="action_copy_code">Copy Code</string>
+    <string name="action_share_invite">Share Invite</string>
+    <string name="action_sign_out">Sign Out</string>
+    <string name="label_invite_code">Family Invite Code</string>
+    <string name="label_live_sync">Auto-syncing live to family cloud</string>
+    <string name="empty_album_title">Your Gathering Frame Is Ready</string>
+    <string name="empty_album_body">Create a November family gathering or enter an invite code from the host to start syncing photos straight to the TV.</string>
+    <string name="empty_photos_title">No Photos Synced Yet</string>
+    <string name="empty_photos_body">Tap Send Photos to drop up to 20 family shots at once. Hearthframe tags the day automatically and updates every connected TV.</string>
+    <string name="cd_hero_banner">Warm family gathering living room illustration</string>
+    <string name="cd_empty_album">Open linen family photo album illustration</string>
+    <string name="action_cast_tv">Cast to Smart TV</string>
+    <string name="action_open_cast_picker">Open Wireless Cast Picker</string>
+    <string name="cd_cast_button">Cast slideshow to Smart TV</string>
+</resources>

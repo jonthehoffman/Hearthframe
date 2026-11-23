@@ -1,0 +1,6 @@
+{
+  "name": "Hearthframe",
+  "description": "Shared November family gathering cloud photo album with automatic sync and TV slideshow display.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

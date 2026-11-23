@@ -1,0 +1,218 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated family member profile stored privately under their UID.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name shown as photo contributor attribution."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["userId", "displayName", "createdAt", "updatedAt"]
+    },
+    "GatheringAlbum": {
+      "title": "GatheringAlbum",
+      "description": "A shared family gathering cloud album (e.g., Thanksgiving / November gathering).",
+      "type": "object",
+      "properties": {
+        "hostUserId": {
+          "type": "string",
+          "description": "UID of the family host who created the album."
+        },
+        "hostName": {
+          "type": "string",
+          "description": "Display name of the host."
+        },
+        "title": {
+          "type": "string",
+          "description": "Album title, e.g., Hoffman Thanksgiving 2026."
+        },
+        "gatheringMonth": {
+          "type": "string",
+          "description": "Gathering month and year label, e.g., November 2026."
+        },
+        "inviteCode": {
+          "type": "string",
+          "description": "Uppercase alphanumeric code family members use to join."
+        },
+        "memberUids": {
+          "type": "array",
+          "description": "Bounded list (max 50) of authenticated member UIDs."
+        },
+        "photoCount": {
+          "type": "integer",
+          "description": "Count of photos synced to this album."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "hostUserId",
+        "hostName",
+        "title",
+        "gatheringMonth",
+        "inviteCode",
+        "memberUids",
+        "photoCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AlbumInvite": {
+      "title": "AlbumInvite",
+      "description": "Direct lookup document keyed by uppercase inviteCode to join a family album without listing all albums.",
+      "type": "object",
+      "properties": {
+        "albumId": {
+          "type": "string",
+          "description": "Target GatheringAlbum document ID."
+        },
+        "hostUserId": {
+          "type": "string",
+          "description": "UID of the album host."
+        },
+        "albumTitle": {
+          "type": "string",
+          "description": "Title of the target album."
+        },
+        "gatheringMonth": {
+          "type": "string",
+          "description": "Gathering month label of the target album."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["albumId", "hostUserId", "albumTitle", "gatheringMonth", "createdAt"]
+    },
+    "GatheringPhoto": {
+      "title": "GatheringPhoto",
+      "description": "A compressed HD photo synced to a shared GatheringAlbum for automatic organization and TV slideshow display.",
+      "type": "object",
+      "properties": {
+        "albumId": {
+          "type": "string",
+          "description": "Parent GatheringAlbum ID."
+        },
+        "uploaderId": {
+          "type": "string",
+          "description": "UID of the family member who sent the photo."
+        },
+        "uploaderName": {
+          "type": "string",
+          "description": "Contributor name displayed on the TV slideshow and grid."
+        },
+        "caption": {
+          "type": "string",
+          "description": "Optional short memory caption."
+        },
+        "momentTag": {
+          "type": "string",
+          "enum": [
+            "DINNER_TABLE",
+            "PORTRAITS",
+            "CANDID_FUN",
+            "OUTDOORS",
+            "KITCHEN_PIE",
+            "FIRESIDE",
+            "OTHER"
+          ],
+          "description": "Moment category for automatic grouping."
+        },
+        "dayLabel": {
+          "type": "string",
+          "description": "Auto-extracted day bucket label (e.g., Thu · Nov 26)."
+        },
+        "takenAtMillis": {
+          "type": "integer",
+          "description": "Epoch milliseconds when photo was captured or shared."
+        },
+        "imageBase64": {
+          "type": "string",
+          "description": "JPEG Base64 encoded image payload sized for TV display."
+        },
+        "aspectRatio": {
+          "type": "number",
+          "description": "Width-to-height aspect ratio."
+        },
+        "starredByUids": {
+          "type": "array",
+          "description": "Bounded list (max 50) of member UIDs who favorited this photo for TV highlights."
+        },
+        "memberUids": {
+          "type": "array",
+          "description": "Denormalized member UIDs from the parent GatheringAlbum."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "albumId",
+        "uploaderId",
+        "uploaderName",
+        "caption",
+        "momentTag",
+        "dayLabel",
+        "takenAtMillis",
+        "imageBase64",
+        "aspectRatio",
+        "starredByUids",
+        "memberUids",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile documents keyed by Auth UID."
+    },
+    "/albums/{albumId}": {
+      "schema": { "$ref": "#/entities/GatheringAlbum" },
+      "description": "Shared November family gathering albums scoped by memberUids."
+    },
+    "/invites/{inviteCode}": {
+      "schema": { "$ref": "#/entities/AlbumInvite" },
+      "description": "Direct get-only invite lookup documents keyed by uppercase invite code."
+    },
+    "/albums/{albumId}/photos/{photoId}": {
+      "schema": { "$ref": "#/entities/GatheringPhoto" },
+      "description": "Photos belonging to a shared album with denormalized memberUids."
+    }
+  }
+}

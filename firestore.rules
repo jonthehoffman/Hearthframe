@@ -1,0 +1,262 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HARDENED HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidInviteCode(code) {
+      return code is string && code.size() >= 4 && code.size() <= 12 && code.matches('^[A-Z0-9]+$');
+    }
+
+    // --- VALIDATION BLUEPRINTS ---
+
+    function isValidUserProfile(data, uid) {
+      return data.userId is string && data.userId == uid && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60;
+    }
+
+    function isValidAlbum(data) {
+      return data.hostUserId is string && data.hostUserId.size() >= 1 && data.hostUserId.size() <= 128 &&
+             data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 60 &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 80 &&
+             data.gatheringMonth is string && data.gatheringMonth.size() >= 2 && data.gatheringMonth.size() <= 40 &&
+             isValidInviteCode(data.inviteCode) &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 50 &&
+             data.memberUids[0] is string &&
+             data.photoCount is int && data.photoCount >= 0 && data.photoCount <= 100000;
+    }
+
+    function isValidInvite(data) {
+      return isValidId(data.albumId) &&
+             data.hostUserId is string && data.hostUserId.size() >= 1 && data.hostUserId.size() <= 128 &&
+             data.albumTitle is string && data.albumTitle.size() >= 2 && data.albumTitle.size() <= 80 &&
+             data.gatheringMonth is string && data.gatheringMonth.size() >= 2 && data.gatheringMonth.size() <= 40;
+    }
+
+    function isValidMomentTag(tag) {
+      return tag in [
+        'DINNER_TABLE',
+        'PORTRAITS',
+        'CANDID_FUN',
+        'OUTDOORS',
+        'KITCHEN_PIE',
+        'FIRESIDE',
+        'OTHER'
+      ];
+    }
+
+    function isValidPhoto(data, parentAlbumId) {
+      return data.albumId is string && data.albumId == parentAlbumId && data.albumId.size() <= 128 &&
+             data.uploaderId is string && data.uploaderId.size() >= 1 && data.uploaderId.size() <= 128 &&
+             data.uploaderName is string && data.uploaderName.size() >= 1 && data.uploaderName.size() <= 60 &&
+             data.caption is string && data.caption.size() <= 160 &&
+             data.momentTag is string && data.momentTag.size() <= 30 && isValidMomentTag(data.momentTag) &&
+             data.dayLabel is string && data.dayLabel.size() >= 1 && data.dayLabel.size() <= 40 &&
+             data.takenAtMillis is int && data.takenAtMillis > 0 &&
+             data.imageBase64 is string && data.imageBase64.size() >= 16 && data.imageBase64.size() <= 850000 &&
+             data.aspectRatio is number && data.aspectRatio >= 0.2 && data.aspectRatio <= 5.0 &&
+             data.starredByUids is list && data.starredByUids.size() <= 50 &&
+             (data.starredByUids.size() == 0 || data.starredByUids[0] is string) &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 50 &&
+             data.memberUids[0] is string;
+    }
+
+    // --- COLLECTION RULES ---
+
+    match /users/{userId} {
+      allow get, list: if isSignedIn() && request.auth.uid == userId;
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'createdAt', 'updatedAt']) &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    match /albums/{albumId} {
+      allow get, list: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+
+      allow create: if isSignedIn() &&
+                       isValidId(albumId) &&
+                       isValidAlbum(incoming()) &&
+                       incoming().hostUserId == request.auth.uid &&
+                       request.auth.uid in incoming().memberUids &&
+                       incoming().memberUids.size() == 1 &&
+                       incoming().photoCount == 0 &&
+                       incoming().keys().hasAll([
+                         'hostUserId', 'hostName', 'title', 'gatheringMonth',
+                         'inviteCode', 'memberUids', 'photoCount', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'hostUserId', 'hostName', 'title', 'gatheringMonth',
+                         'inviteCode', 'memberUids', 'photoCount', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time;
+
+      allow update: if isSignedIn() &&
+                       isValidId(albumId) &&
+                       isValidAlbum(incoming()) &&
+                       incoming().hostUserId == existing().hostUserId &&
+                       incoming().hostName == existing().hostName &&
+                       incoming().inviteCode == existing().inviteCode &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                       (
+                         // Action 1: Join album with invite (adds only self to memberUids)
+                         (
+                           !(request.auth.uid in existing().memberUids) &&
+                           request.auth.uid in incoming().memberUids &&
+                           incoming().memberUids.hasAll(existing().memberUids) &&
+                           incoming().memberUids.size() == existing().memberUids.size() + 1 &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+                         ) ||
+                         // Action 2: Host edits title or gathering month
+                         (
+                           request.auth.uid == existing().hostUserId &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['title', 'gatheringMonth', 'updatedAt'])
+                         ) ||
+                         // Action 3: Album member updates photoCount when syncing/deleting photos
+                         (
+                           request.auth.uid in existing().memberUids &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['photoCount', 'updatedAt'])
+                         ) ||
+                         // Action 4: Non-host member leaves album
+                         (
+                           request.auth.uid in existing().memberUids &&
+                           request.auth.uid != existing().hostUserId &&
+                           !(request.auth.uid in incoming().memberUids) &&
+                           existing().memberUids.hasAll(incoming().memberUids) &&
+                           incoming().memberUids.size() == existing().memberUids.size() - 1 &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isSignedIn() && isValidId(albumId) && existing().hostUserId == request.auth.uid;
+
+      match /photos/{photoId} {
+        allow get, list: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+
+        allow create: if isSignedIn() &&
+                         isValidId(albumId) &&
+                         isValidId(photoId) &&
+                         isValidPhoto(incoming(), albumId) &&
+                         incoming().uploaderId == request.auth.uid &&
+                         request.auth.uid in incoming().memberUids &&
+                         incoming().keys().hasAll([
+                           'albumId', 'uploaderId', 'uploaderName', 'caption',
+                           'momentTag', 'dayLabel', 'takenAtMillis', 'imageBase64',
+                           'aspectRatio', 'starredByUids', 'memberUids', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'albumId', 'uploaderId', 'uploaderName', 'caption',
+                           'momentTag', 'dayLabel', 'takenAtMillis', 'imageBase64',
+                           'aspectRatio', 'starredByUids', 'memberUids', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         exists(/databases/$(database)/documents/albums/$(albumId)) &&
+                         request.auth.uid in get(/databases/$(database)/documents/albums/$(albumId)).data.memberUids;
+
+        allow update: if isSignedIn() &&
+                         isValidId(albumId) &&
+                         isValidId(photoId) &&
+                         isValidPhoto(incoming(), albumId) &&
+                         incoming().albumId == existing().albumId &&
+                         incoming().uploaderId == existing().uploaderId &&
+                         incoming().uploaderName == existing().uploaderName &&
+                         incoming().imageBase64 == existing().imageBase64 &&
+                         incoming().takenAtMillis == existing().takenAtMillis &&
+                         incoming().aspectRatio == existing().aspectRatio &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().updatedAt is timestamp && incoming().updatedAt <= request.time &&
+                         (
+                           // Action 1: Any album member stars/unstars a photo for TV highlights
+                           (
+                             request.auth.uid in existing().memberUids &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['starredByUids', 'updatedAt'])
+                           ) ||
+                           // Action 2: Uploader or album host edits caption, moment tag, or day bucket
+                           (
+                             (request.auth.uid == existing().uploaderId ||
+                              request.auth.uid == get(/databases/$(database)/documents/albums/$(albumId)).data.hostUserId) &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'momentTag', 'dayLabel', 'updatedAt'])
+                           ) ||
+                           // Action 3: Existing member propagates newly joined memberUids onto older photos
+                           (
+                             request.auth.uid in existing().memberUids &&
+                             incoming().memberUids.hasAll(existing().memberUids) &&
+                             incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+                           )
+                         );
+
+        allow delete: if isSignedIn() &&
+                         isValidId(albumId) &&
+                         isValidId(photoId) &&
+                         (existing().uploaderId == request.auth.uid ||
+                          get(/databases/$(database)/documents/albums/$(albumId)).data.hostUserId == request.auth.uid);
+      }
+    }
+
+    match /invites/{inviteCode} {
+      // Allow direct lookup only when caller already knows the exact inviteCode; forbid listing all invites.
+      allow get: if isSignedIn() && isValidInviteCode(inviteCode);
+      allow list: if false;
+
+      allow create: if isSignedIn() &&
+                       isValidInviteCode(inviteCode) &&
+                       isValidInvite(incoming()) &&
+                       incoming().hostUserId == request.auth.uid &&
+                       incoming().keys().hasAll(['albumId', 'hostUserId', 'albumTitle', 'gatheringMonth', 'createdAt']) &&
+                       incoming().keys().hasOnly(['albumId', 'hostUserId', 'albumTitle', 'gatheringMonth', 'createdAt']) &&
+                       incoming().createdAt is timestamp && incoming().createdAt <= request.time &&
+                       existsAfter(/databases/$(database)/documents/albums/$(incoming().albumId));
+
+      allow update: if isSignedIn() &&
+                       isValidInviteCode(inviteCode) &&
+                       isValidInvite(incoming()) &&
+                       existing().hostUserId == request.auth.uid &&
+                       incoming().hostUserId == existing().hostUserId &&
+                       incoming().albumId == existing().albumId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['albumTitle', 'gatheringMonth']);
+
+      allow delete: if isSignedIn() && isValidInviteCode(inviteCode) && existing().hostUserId == request.auth.uid;
+    }
+  }
+}
